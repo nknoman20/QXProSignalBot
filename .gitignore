@@ -12,22 +12,12 @@ render.env
 env/
 venv/
 
-# VSCode settings
+# VSCode
 .vscode/
 
-# Logs and temporary files
+# Logs
 *.log
-*.tmp
-*.bak
 
-# OS-specific junk files
+# OS junk files
 .DS_Store
 Thumbs.db
-
-# Python eggs
-*.egg-info/
-dist/
-build/
-
-# Render build cache
-.cache/

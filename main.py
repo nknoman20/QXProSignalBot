@@ -72,18 +72,11 @@ def send_best_signal():
     last_directions[now] = (best_pair, direction)
 
     msg = (
-        "🚨 *Trade Signal Alert*
-
-"
-        f"💹 *Pair:* {best_pair}
-"
-        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}
-"
-        f"🕒 *Time:* {now}
-"
-        "⏱ *Duration:* 1 Minute
-
-"
+        "🚨 *Trade Signal Alert*\n\n"
+        f"💹 *Pair:* {best_pair}\n"
+        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}\n"
+        f"🕒 *Time:* {now}\n"
+        "⏱ *Duration:* 1 Minute\n\n"
         "⚠️ Place this trade manually on Quotex!"
     )
     bot.send_message(chat_id=GROUP_ID, text=msg, parse_mode='Markdown')
@@ -91,14 +84,9 @@ def send_best_signal():
 # === Commands ===
 def start(update: Update, context):
     update.message.reply_text(
-        "👋 Welcome to *Quotex Pro Signal Bot!*
-
-"
-        "I send high-accuracy signals every few minutes based on market trends.
-"
-        "Use /timeset <seconds> to change the signal interval.
-
-"
+        "👋 Welcome to *Quotex Pro Signal Bot!*\n\n"
+        "I send high-accuracy signals every few minutes based on market trends.\n"
+        "Use /timeset <seconds> to change the signal interval.\n\n"
         "✅ Example: `/timeset 180` to get signals every 3 minutes.",
         parse_mode='Markdown'
     )

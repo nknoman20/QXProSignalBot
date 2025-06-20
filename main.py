@@ -1,84 +1,131 @@
 import os
-import random
 import logging
+import requests
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Dispatcher, CommandHandler
-from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from pytz import timezone
+from dotenv import load_dotenv
 
-# --- Configurations ---
+load_dotenv()
+
+# Config
+API_KEY = os.getenv("TWELVE_DATA_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 DEFAULT_INTERVAL = int(os.getenv("DEFAULT_INTERVAL", 300))
-TIMEZONE = timezone('Asia/Dhaka')
+TIMEZONE = timezone("Asia/Dhaka")
 
 bot = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
+dispatcher = Dispatcher(bot, update_queue=None, workers=4, use_context=True)
 logging.basicConfig(level=logging.INFO)
 
-# --- Scheduler Setup ---
-scheduler = BackgroundScheduler()
+# Pairs to monitor
+PAIRS = [
+    "EUR/USD", "GBP/USD", "AUD/USD",
+    "USD/JPY", "USD/CHF", "USD/CAD"
+]
+
 interval_seconds = DEFAULT_INTERVAL
+last_directions = {}
 
-# --- Signal Generator ---
-assets = ['EUR/USD', 'BTC/USD', 'GBP/USD', 'USD/JPY']
-directions = ['UP', 'DOWN']
+# Detect trend
+def get_trend(symbol):
+    url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1min&outputsize=3&apikey={API_KEY}"
+    try:
+        res = requests.get(url).json()
+        values = res['values']
+        c1 = float(values[0]['close'])
+        c2 = float(values[1]['close'])
+        return 'UP' if c1 > c2 else 'DOWN'
+    except Exception as e:
+        logging.error(f"Error fetching trend for {symbol}: {e}")
+        return None
 
-def send_signal():
-    asset = random.choice(assets)
-    direction = random.choice(directions)
+# Select best signal
+def generate_signal():
+    scores = {}
+    for symbol in PAIRS:
+        trend = get_trend(symbol)
+        if trend:
+            scores[symbol] = trend
+    return scores
+
+def send_best_signal():
+    global last_directions
+    all_signals = generate_signal()
+
+    if not all_signals:
+        bot.send_message(chat_id=GROUP_ID, text="⚠️ No signal generated due to API issue.")
+        return
+
+    best_pair = list(all_signals.keys())[0]
+    direction = all_signals[best_pair]
     now = datetime.now(TIMEZONE).strftime('%I:%M %p')
 
-    message = (
-        "🚨 Trade Signal Alert\n\n"
-        f"Pair: {asset}\n"
-        f"Direction: {'📈' if direction == 'UP' else '📉'} {direction}\n"
-        f"Time: {now}\n"
-        "Duration: 1 Minute\n\n"
+    last_directions[now] = (best_pair, direction)
+
+    msg = (
+        "🚨 *Trade Signal Alert*\n\n"
+        f"💹 *Pair:* {best_pair}\n"
+        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}\n"
+        f"🕒 *Time:* {now}\n"
+        "⏱ *Duration:* 1 Minute\n\n"
         "⚠️ Place this trade manually on Quotex!"
     )
-    bot.send_message(chat_id=GROUP_ID, text=message)
+    bot.send_message(chat_id=GROUP_ID, text=msg, parse_mode='Markdown')
 
-job = scheduler.add_job(send_signal, 'interval', seconds=interval_seconds, id='send_signal')
-scheduler.start()
-
-# --- Handlers ---
+# Command: /start
 def start(update: Update, context):
-    welcome = (
-        "🌟 *Welcome to Elite Quotex Signal Bot!*\n\n"
-        "This bot sends 1-minute trading signals every 5 minutes by default.\n"
-        "You can change the interval using `/timeset <seconds>`.\n\n"
-        "Example: `/timeset 120` to receive signals every 2 minutes.\n\n"
-        "✅ All signals are posted automatically in the group."
+    update.message.reply_text(
+        "👋 Welcome to *Quotex Pro Signal Bot!*\n\n"
+        "I send high-probability signals every 5 minutes.\n"
+        "Use /timeset 120 to change the signal interval.\n\n"
+        "✅ Signals are based on real-time trend analysis.\n\n"
+        "Enjoy smart trading!",
+        parse_mode='Markdown'
     )
-    update.message.reply_text(welcome, parse_mode='Markdown')
 
+# Command: /timeset <seconds>
 def timeset(update: Update, context):
     global interval_seconds
     try:
-        new_time = int(context.args[0])
-        interval_seconds = new_time
-        scheduler.reschedule_job('send_signal', trigger='interval', seconds=interval_seconds)
-        update.message.reply_text(f"Signal interval updated to {interval_seconds} seconds ✅")
+        if context.args:
+            new_time = int(context.args[0])
+            interval_seconds = new_time
+            update.message.reply_text(f"⏱ Interval set to {interval_seconds} seconds.")
+        else:
+            raise ValueError
     except Exception:
-        update.message.reply_text("Invalid format. Use: /timeset 120")
+        update.message.reply_text("❌ Invalid format. Use: /timeset 120")
 
-# --- Webhook Route ---
-dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
+# Setup commands
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("timeset", timeset))
 
+# Webhook routes
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
-    return "OK"
+    return "OK", 200
 
 @app.route("/")
-def index():
-    return "Elite Quotex Signal Bot is running."
+def home():
+    return "Quotex Pro Signal Bot is Live!", 200
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8080)
+# Signal Scheduler (manually trigger every X seconds)
+import threading
+def run_scheduler():
+    while True:
+        send_best_signal()
+        threading.Event().wait(interval_seconds)
+
+threading.Thread(target=run_scheduler, daemon=True).start()
+
+# Run Flask
+if __name__ == "__main__":
+    logging.info("Starting Quotex Pro Signal Bot...")
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))

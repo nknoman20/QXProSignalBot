@@ -24,7 +24,7 @@ https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-render-
 
 Example:
 ```
-https://api.telegram.org/bot8050053152:AAE3ZJ1nOirlpyY-fZxevXR4gJ2AN2zs5M0/setWebhook?url=https://elitequotex.onrender.com/8050053152:AAE3ZJ1nOirlpyY-fZxevXR4gJ2AN2zs5M0
+https://api.telegram.org/bot8050053152:AAE3ZJ1nOir...Y-fZxevX..gJ2AN2z....k/setWebhook?url=https://elitequotex.onrender.com/8050053152:AAE3ZJ1nOirlpyY-fZxevXR4gJ2AN2z....k
 ```
 
 ## ✅ Usage

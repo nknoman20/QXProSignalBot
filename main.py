@@ -1,4 +1,3 @@
-
 import os
 import logging
 import requests
@@ -65,35 +64,21 @@ def send_best_signal():
     now = datetime.now(TIMEZONE).strftime('%I:%M %p')
     last_directions[now] = (best_pair, direction)
     msg = (
-        "🚨 *Trade Signal Alert*
-
-"
-        f"💹 *Pair:* {best_pair}
-"
-        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}
-"
-        f"🕒 *Time:* {now}
-"
-        "⏱ *Duration:* 1 Minute
-
-"
+        "🚨 *Trade Signal Alert*\n\n"
+        f"💹 *Pair:* {best_pair}\n"
+        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}\n"
+        f"🕒 *Time:* {now}\n"
+        "⏱ *Duration:* 1 Minute\n\n"
         "⚠️ Place this trade manually on Quotex!"
     )
     bot.send_message(chat_id=GROUP_ID, text=msg, parse_mode='Markdown')
 
 def start(update: Update, context):
     update.message.reply_text(
-        "👋 Welcome to *Quotex Pro Signal Bot!*
-
-"
-        "I send high-probability signals every 5 minutes.
-"
-        "Use /timeset 120 to change the signal interval.
-
-"
-        "✅ Signals are based on real-time multi-candle trend strength.
-
-"
+        "👋 Welcome to *Quotex Pro Signal Bot!*\n\n"
+        "I send high-probability signals every 5 minutes.\n"
+        "Use /timeset 120 to change the signal interval.\n\n"
+        "✅ Signals are based on real-time multi-candle trend strength.\n\n"
         "Enjoy smart trading!",
         parse_mode='Markdown'
     )
@@ -112,16 +97,10 @@ def timeset(update: Update, context):
 
 def about(update: Update, context):
     update.message.reply_text(
-        "📄 *About Quotex Pro Signal Bot*
-
-"
-        "This bot sends real-time signals with 90%+ accuracy using strong candle trends.
-"
-        "📊 Based on 3-candle momentum filtering.
-
-"
-        "👤 Developer: @nknoman22
-"
+        "📄 *About Quotex Pro Signal Bot*\n\n"
+        "This bot sends real-time signals with 90%+ accuracy using strong candle trends.\n"
+        "📊 Based on 3-candle momentum filtering.\n\n"
+        "👤 Developer: @nknoman22\n"
         "🔗 Bot: @QXProSignalBot",
         parse_mode='Markdown'
     )

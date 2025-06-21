@@ -1,4 +1,3 @@
-
 import os
 import logging
 import requests
@@ -16,7 +15,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 DEFAULT_INTERVAL = int(os.getenv("DEFAULT_INTERVAL", 300))
-QUOTEX_OFFSET = int(os.getenv("QUOTEX_OFFSET", 10))  # seconds offset for Quotex clock adjustment
+QUOTEX_OFFSET = int(os.getenv("QUOTEX_OFFSET", 10))  # seconds offset for Quotex clock
 TIMEZONE = timezone("Asia/Dhaka")
 HOST_URL = os.getenv("HOST_URL")
 PORT = int(os.getenv("PORT", 10000))
@@ -26,7 +25,7 @@ app = Flask(__name__)
 dispatcher = Dispatcher(bot, update_queue=None, workers=4, use_context=True)
 logging.basicConfig(level=logging.INFO)
 
-# Correct Finnhub symbols
+# ✅ Correct Finnhub symbols (OANDA)
 PAIRS = {
     "EUR_USD": "EUR/USD",
     "GBP_USD": "GBP/USD",
@@ -61,7 +60,7 @@ def analyze_trend(symbol):
     diff2 = closes[-2] - closes[-3]
     diff3 = closes[-3] - closes[-4]
 
-    threshold = 0.0001
+    threshold = 0.0001  # Forex pairs move small
     if diff1 > threshold and diff2 > threshold and diff3 > threshold:
         return "UP"
     elif diff1 < -threshold and diff2 < -threshold and diff3 < -threshold:
@@ -114,11 +113,11 @@ def timeset(update: Update, context):
         if context.args:
             new_interval = int(context.args[0])
             interval_seconds = new_interval
-            update.message.reply_text(f"Interval changed to {interval_seconds} seconds.")
+            update.message.reply_text(f"✅ Interval changed to {interval_seconds} seconds.")
         else:
             update.message.reply_text("Usage: /timeset <seconds>")
     except Exception:
-        update.message.reply_text("Invalid input. Use: /timeset <seconds>")
+        update.message.reply_text("❌ Invalid input. Use: /timeset <seconds>")
 
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("timeset", timeset))
@@ -131,7 +130,7 @@ def webhook():
 
 @app.route("/")
 def index():
-    return "Quotex Pro Signal Bot is Running!", 200
+    return "✅ Quotex Pro Signal Bot is Running!", 200
 
 def scheduler_thread():
     while True:

@@ -1,61 +1,78 @@
-import requests
 import os
-import pandas as pd
-import ta
+import logging
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import Dispatcher, CommandHandler
+from apscheduler.schedulers.background import BackgroundScheduler
+from signal_engine import generate_signal
+from datetime import datetime
+from pytz import timezone
 
-API_KEY = os.getenv("TWELVEDATA_API_KEY")
+# Load ENV variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = int(os.getenv("GROUP_ID"))
+TIMEZONE = timezone('Asia/Dhaka')
+INTERVAL = int(os.getenv("INTERVAL", 300))
 
-PAIRS = {
-    "EUR/USD": "EUR/USD",
-    "GBP/USD": "GBP/USD",
-    "USD/JPY": "USD/JPY",
-    "AUD/USD": "AUD/USD",
-    "USD/CAD": "USD/CAD"
-}
+# Init bot and app
+bot = Bot(token=BOT_TOKEN)
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-def fetch_data(symbol):
-    url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1min&outputsize=50&apikey={API_KEY}"
-    print(f"📥 Fetching data from: {url}")
-    r = requests.get(url)
-    data = r.json()
-    if "values" not in data:
-        print(f"❌ No data for {symbol}: {data}")
-        return None
-    df = pd.DataFrame(data["values"])
-    df = df.rename(columns={"datetime": "date", "close": "close"})
-    df["close"] = pd.to_numeric(df["close"])
-    df = df.sort_values("date")
-    return df
+# Scheduler setup
+scheduler = BackgroundScheduler(timezone=TIMEZONE)
 
-def analyze(df):
-    df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
-    df["ema_9"] = ta.trend.EMAIndicator(df["close"], window=9).ema_indicator()
-    df["ema_21"] = ta.trend.EMAIndicator(df["close"], window=21).ema_indicator()
+def send_signal():
+    print("📡 Running send_signal function...")
+    signal = generate_signal()
+    if signal:
+        asset, direction, reason = signal
+        now = datetime.now(TIMEZONE).strftime('%I:%M %p')
+        message = (
+            "🚨 *Smart Trade Signal (RSI+EMA)*\n\n"
+            f"Pair: `{asset}`\n"
+            f"Direction: {'📈 UP' if direction == 'BUY' else '📉 DOWN'}\n"
+            f"Reason: {reason}\n"
+            f"Time: {now}\n"
+            "Duration: 1 Minute\n\n"
+            "⚠️ Place trade on Quotex manually."
+        )
+        print(f"📬 Sending message:\n{message}")
+        bot.send_message(chat_id=GROUP_ID, text=message, parse_mode="Markdown")
+    else:
+        print("⚠️ No valid signal to send.")
 
-    latest = df.iloc[-1]
-    print(f"📊 RSI: {latest['rsi']:.2f}, EMA9: {latest['ema_9']:.5f}, EMA21: {latest['ema_21']:.5f}")
+# Schedule job
+scheduler.add_job(send_signal, 'interval', seconds=INTERVAL, id='send_signal')
+scheduler.start()
 
-    signal = None
-    reason = ""
+# Telegram /start command handler
+def start(update: Update, context):
+    update.message.reply_text("🤖 RSI+EMA Signal Bot is running!")
 
-    if latest["rsi"] < 30 and latest["ema_9"] > latest["ema_21"]:
-        signal = "BUY"
-        reason = "RSI Oversold & EMA Crossover (Up)"
-    elif latest["rsi"] > 70 and latest["ema_9"] < latest["ema_21"]:
-        signal = "SELL"
-        reason = "RSI Overbought & EMA Crossover (Down)"
-    return signal, reason
+# Telegram Dispatcher
+dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
+dispatcher.add_handler(CommandHandler("start", start))
 
-def generate_signal():
-    for name, symbol in PAIRS.items():
-        print(f"🔍 Checking: {name}")
-        df = fetch_data(symbol)
-        if df is not None and len(df) > 21:
-            signal, reason = analyze(df)
-            if signal:
-                print(f"✅ Signal found for {name}: {signal} ({reason})")
-                return name, signal, reason
-        else:
-            print(f"⚠️ Not enough data for {name}")
-    print("🚫 No valid signals generated.")
-    return None
+# Webhook for Telegram
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "OK", 200
+
+# Manual test route (force signal)
+@app.route("/test-signal", methods=["GET"])
+def test_signal():
+    send_signal()
+    return "✅ Signal sent (if valid)", 200
+
+# Root path for Render health check
+@app.route("/", methods=["GET"])
+def index():
+    return "✅ RSI+EMA Signal Bot running."
+
+# App run for local/Render deployment
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

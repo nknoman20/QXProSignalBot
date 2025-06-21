@@ -15,9 +15,11 @@ PAIRS = {
 
 def fetch_data(symbol):
     url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1min&outputsize=50&apikey={API_KEY}"
+    print(f"📥 Fetching data from: {url}")
     r = requests.get(url)
     data = r.json()
     if "values" not in data:
+        print(f"❌ No data for {symbol}: {data}")
         return None
     df = pd.DataFrame(data["values"])
     df = df.rename(columns={"datetime": "date", "close": "close"})
@@ -31,7 +33,7 @@ def analyze(df):
     df["ema_21"] = ta.trend.EMAIndicator(df["close"], window=21).ema_indicator()
 
     latest = df.iloc[-1]
-    prev = df.iloc[-2]
+    print(f"📊 RSI: {latest['rsi']:.2f}, EMA9: {latest['ema_9']:.5f}, EMA21: {latest['ema_21']:.5f}")
 
     signal = None
     reason = ""
@@ -46,9 +48,14 @@ def analyze(df):
 
 def generate_signal():
     for name, symbol in PAIRS.items():
+        print(f"🔍 Checking: {name}")
         df = fetch_data(symbol)
         if df is not None and len(df) > 21:
             signal, reason = analyze(df)
             if signal:
+                print(f"✅ Signal found for {name}: {signal} ({reason})")
                 return name, signal, reason
+        else:
+            print(f"⚠️ Not enough data for {name}")
+    print("🚫 No valid signals generated.")
     return None

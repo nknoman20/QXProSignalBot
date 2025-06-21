@@ -56,13 +56,11 @@ def analyze_trend(symbol):
         logging.error(f"Not enough candle data for {symbol}")
         return None
 
-    # 3 candle differences (momentum)
     diff1 = closes[-1] - closes[-2]
     diff2 = closes[-2] - closes[-3]
     diff3 = closes[-3] - closes[-4]
 
-    # Simple momentum check with threshold
-    threshold = 0.0001  # small threshold for forex pairs
+    threshold = 0.0001
     if diff1 > threshold and diff2 > threshold and diff3 > threshold:
         return "UP"
     elif diff1 < -threshold and diff2 < -threshold and diff3 < -threshold:
@@ -84,8 +82,6 @@ def send_signal():
         bot.send_message(chat_id=GROUP_ID, text="⚠️ No strong signals detected this round.")
         return
 
-    # Pick the strongest signal (latest)
-    # Here just pick first one (you can improve with strength)
     pair, direction = next(iter(signals.items()))
 
     now = datetime.now(TIMEZONE) + timedelta(seconds=QUOTEX_OFFSET)

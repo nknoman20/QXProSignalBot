@@ -8,13 +8,13 @@ from signal_engine import generate_signal
 from datetime import datetime
 from pytz import timezone
 
-# Load ENV variables
+# Load environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 TIMEZONE = timezone('Asia/Dhaka')
 INTERVAL = int(os.getenv("INTERVAL", 300))
 
-# Init bot and app
+# Initialize bot and app
 bot = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 # Scheduler setup
 scheduler = BackgroundScheduler(timezone=TIMEZONE)
 
+# Signal sending logic
 def send_signal():
     print("📡 Running send_signal function...")
     signal = generate_signal()
@@ -42,37 +43,37 @@ def send_signal():
     else:
         print("⚠️ No valid signal to send.")
 
-# Schedule job
+# Schedule automatic signal sending
 scheduler.add_job(send_signal, 'interval', seconds=INTERVAL, id='send_signal')
 scheduler.start()
 
-# Telegram /start command handler
+# Handle /start command
 def start(update: Update, context):
     update.message.reply_text("🤖 RSI+EMA Signal Bot is running!")
 
-# Telegram Dispatcher
+# Set up dispatcher
 dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 dispatcher.add_handler(CommandHandler("start", start))
 
-# Webhook for Telegram
+# Telegram webhook handler
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return "OK", 200
 
-# Manual test route (force signal)
+# ✅ Test signal route
 @app.route("/test-signal", methods=["GET"])
 def test_signal():
     send_signal()
     return "✅ Signal sent (if valid)", 200
 
-# Root path for Render health check
+# ✅ Root route for Render health check
 @app.route("/", methods=["GET"])
 def index():
     return "✅ RSI+EMA Signal Bot running."
 
-# App run for local/Render deployment
+# Run app for local or Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

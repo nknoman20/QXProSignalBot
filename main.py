@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 scheduler = BackgroundScheduler(timezone=TIMEZONE)
 
 def send_signal():
+    print("📡 Running send_signal function...")
     signal = generate_signal()
     if signal:
         asset, direction, reason = signal
@@ -33,7 +34,10 @@ def send_signal():
             "Duration: 1 Minute\n\n"
             "⚠️ Place trade on Quotex manually."
         )
+        print(f"📬 Sending message: {message}")
         bot.send_message(chat_id=GROUP_ID, text=message, parse_mode="Markdown")
+    else:
+        print("⚠️ No signal to send.")
 
 scheduler.add_job(send_signal, 'interval', seconds=INTERVAL, id='send_signal')
 scheduler.start()
@@ -54,7 +58,6 @@ def webhook():
 def index():
     return "✅ RSI+EMA Signal Bot running."
 
-# ✅ PORT binding added here
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

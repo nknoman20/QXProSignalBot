@@ -25,22 +25,14 @@ def send_signal():
         asset, direction, reason = signal
         now = datetime.now(TIMEZONE).strftime('%I:%M %p')
         message = (
-            "🚨 *Smart Trade Signal (RSI+EMA)*
-
-"
-            f"Pair: `{asset}`
-"
-            f"Direction: {'📈 UP' if direction == 'BUY' else '📉 DOWN'}
-"
-            f"Reason: {reason}
-"
-            f"Time: {now}
-"
-            "Duration: 1 Minute
-
-"
-            "⚠️ Place trade on Quotex manually."
-        )
+    "🚨 *Smart Trade Signal (RSI+EMA)*\n\n"
+    f"Pair: `{asset}`\n"
+    f"Direction: {'📈 UP' if direction == 'BUY' else '📉 DOWN'}\n"
+    f"Reason: {reason}\n"
+    f"Time: {now}\n"
+    "Duration: 1 Minute\n\n"
+    "⚠️ Place trade on Quotex manually."
+)
         bot.send_message(chat_id=GROUP_ID, text=message, parse_mode="Markdown")
 
 scheduler.add_job(send_signal, 'interval', seconds=INTERVAL, id='send_signal')

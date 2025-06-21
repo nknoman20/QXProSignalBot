@@ -1,13 +1,21 @@
-# Quotex Pro Signal Bot
+# Quotex Pro Signal Bot (RSI + EMA)
 
-🚀 A Telegram bot that sends high-accuracy 1-minute trading signals every 5 minutes based on real-time trend analysis using the TwelveData API.
+This bot sends smart 1-minute trading signals using live RSI and EMA crossover logic.
 
 ## Features
-- 🔍 Analyzes top 5 forex pairs (excluding BTC)
-- 📊 Picks strongest trend based on 3-candle momentum
-- ⏱ Interval can be changed via `/timeset 120`
-- ✅ No signal sent if trend is weak (avoids false signals)
-- 🧠 Developed with Python, Flask, and Telegram Bot API
+- RSI (14) + EMA(9/21) based confirmation
+- Sends signal to Telegram group via webhook
+- Real-time market data from TwelveData
 
-## Developer
-- [@nknoman22](https://t.me/nknoman22)
+## Deploy Instructions
+
+1. Upload to GitHub
+2. Connect repo to [Render.com](https://render.com)
+3. Set secrets in environment:
+   - `BOT_TOKEN`
+   - `GROUP_ID`
+   - `TWELVEDATA_API_KEY`
+   - `INTERVAL` (optional, default: 300)
+4. Deploy as Web Service (uses `render.yaml`)
+
+Enjoy smart signals!

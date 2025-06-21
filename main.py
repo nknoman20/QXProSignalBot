@@ -25,14 +25,14 @@ def send_signal():
         asset, direction, reason = signal
         now = datetime.now(TIMEZONE).strftime('%I:%M %p')
         message = (
-    "🚨 *Smart Trade Signal (RSI+EMA)*\n\n"
-    f"Pair: `{asset}`\n"
-    f"Direction: {'📈 UP' if direction == 'BUY' else '📉 DOWN'}\n"
-    f"Reason: {reason}\n"
-    f"Time: {now}\n"
-    "Duration: 1 Minute\n\n"
-    "⚠️ Place trade on Quotex manually."
-)
+            "🚨 *Smart Trade Signal (RSI+EMA)*\n\n"
+            f"Pair: `{asset}`\n"
+            f"Direction: {'📈 UP' if direction == 'BUY' else '📉 DOWN'}\n"
+            f"Reason: {reason}\n"
+            f"Time: {now}\n"
+            "Duration: 1 Minute\n\n"
+            "⚠️ Place trade on Quotex manually."
+        )
         bot.send_message(chat_id=GROUP_ID, text=message, parse_mode="Markdown")
 
 scheduler.add_job(send_signal, 'interval', seconds=INTERVAL, id='send_signal')
@@ -53,3 +53,8 @@ def webhook():
 @app.route("/", methods=["GET"])
 def index():
     return "✅ RSI+EMA Signal Bot running."
+
+# ✅ PORT binding added here
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

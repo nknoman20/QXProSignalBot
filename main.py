@@ -11,109 +11,121 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("TWELVE_DATA_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 DEFAULT_INTERVAL = int(os.getenv("DEFAULT_INTERVAL", 300))
-QUOTEX_OFFSET = int(os.getenv("QUOTEX_OFFSET", 5))
+QUOTEX_OFFSET = int(os.getenv("QUOTEX_OFFSET", 10))  # seconds offset for Quotex clock adjustment
 TIMEZONE = timezone("Asia/Dhaka")
 HOST_URL = os.getenv("HOST_URL")
+PORT = int(os.getenv("PORT", 10000))
 
 bot = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 dispatcher = Dispatcher(bot, update_queue=None, workers=4, use_context=True)
 logging.basicConfig(level=logging.INFO)
 
-PAIRS = ["EUR/USD", "GBP/USD", "AUD/USD", "USD/JPY", "USD/CHF"]
-interval_seconds = DEFAULT_INTERVAL
-last_directions = {}
+# Best 4 currency pairs supported by Quotex
+PAIRS = {
+    "EURUSD": "EUR/USD",
+    "GBPUSD": "GBP/USD",
+    "USDJPY": "USD/JPY",
+    "AUDUSD": "AUD/USD"
+}
 
-def get_trend(symbol):
-    url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval=1min&outputsize=5&apikey={API_KEY}"
+interval_seconds = DEFAULT_INTERVAL
+
+def get_candle_data(symbol):
+    url = f"https://finnhub.io/api/v1/forex/candle?symbol=OANDA:{symbol}&resolution=1&count=5&token={FINNHUB_API_KEY}"
     try:
         res = requests.get(url).json()
-        values = res.get("values", [])
-        if len(values) < 4:
-            raise ValueError("Not enough data")
-        closes = [float(v['close']) for v in values[:4]]
-        diff1 = closes[0] - closes[1]
-        diff2 = closes[1] - closes[2]
-        diff3 = closes[2] - closes[3]
-        if diff1 > 0 and diff2 > 0 and diff3 > 0 and all(abs(d) > 0.01 for d in [diff1, diff2, diff3]):
-            return 'UP', abs(diff1 + diff2 + diff3)
-        elif diff1 < 0 and diff2 < 0 and diff3 < 0 and all(abs(d) > 0.01 for d in [diff1, diff2, diff3]):
-            return 'DOWN', abs(diff1 + diff2 + diff3)
+        if res.get("s") != "ok":
+            raise ValueError("Invalid response status")
+        return res
     except Exception as e:
-        logging.error(f"Error fetching trend for {symbol}: {e}")
-    return None, 0
+        logging.error(f"Error fetching candle data for {symbol}: {e}")
+        return None
 
-def generate_signal():
+def analyze_trend(symbol):
+    data = get_candle_data(symbol)
+    if not data:
+        return None
+
+    closes = data.get("c", [])
+    if len(closes) < 4:
+        logging.error(f"Not enough candle data for {symbol}")
+        return None
+
+    # 3 candle differences (momentum)
+    diff1 = closes[-1] - closes[-2]
+    diff2 = closes[-2] - closes[-3]
+    diff3 = closes[-3] - closes[-4]
+
+    # Simple momentum check with threshold
+    threshold = 0.0001  # small threshold for forex pairs
+    if diff1 > threshold and diff2 > threshold and diff3 > threshold:
+        return "UP"
+    elif diff1 < -threshold and diff2 < -threshold and diff3 < -threshold:
+        return "DOWN"
+    else:
+        return None
+
+def generate_signals():
     signals = {}
-    for symbol in PAIRS:
-        trend, strength = get_trend(symbol)
+    for symbol, display_name in PAIRS.items():
+        trend = analyze_trend(symbol)
         if trend:
-            signals[symbol] = (trend, strength)
+            signals[display_name] = trend
     return signals
 
-def send_best_signal():
-    global last_directions
-    all_signals = generate_signal()
-    if not all_signals:
-        bot.send_message(chat_id=GROUP_ID, text="⚠️ No strong signal found in this round.")
+def send_signal():
+    signals = generate_signals()
+    if not signals:
+        bot.send_message(chat_id=GROUP_ID, text="⚠️ No strong signals detected this round.")
         return
-    best_pair, (direction, _) = max(all_signals.items(), key=lambda x: x[1][1])
+
+    # Pick the strongest signal (latest)
+    # Here just pick first one (you can improve with strength)
+    pair, direction = next(iter(signals.items()))
 
     now = datetime.now(TIMEZONE) + timedelta(seconds=QUOTEX_OFFSET)
     entry_time = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
-    show_time = entry_time.strftime('%I:%M %p')
+    entry_time_str = entry_time.strftime("%I:%M %p")
 
-    last_directions[show_time] = (best_pair, direction)
-    msg = (
-        "🚨 *Trade Signal Alert*\n\n"
-        f"💹 *Pair:* {best_pair}\n"
-        f"📊 *Direction:* {'📈' if direction == 'UP' else '📉'} {direction}\n"
-        f"🕒 *Entry Time:* {show_time}\n"
-        "⏱ *Duration:* 1 Minute\n\n"
-        "⚠️ Place this trade manually on Quotex!\n"
-        "🕰 Quotex Clock Adjusted ✅"
+    emoji = "📈" if direction == "UP" else "📉"
+    message = (
+        f"🚨 Trade Signal Alert\n\n"
+        f"💹 Pair: {pair}\n"
+        f"📊 Direction: {emoji} {direction}\n"
+        f"🕒 Entry Time: {entry_time_str}\n"
+        f"⏱ Duration: 1 Minute\n\n"
+        f"⚠️ Place this trade manually on Quotex!\n"
+        f"🕰 Quotex Clock Adjusted ✅"
     )
-    bot.send_message(chat_id=GROUP_ID, text=msg, parse_mode='Markdown')
+    bot.send_message(chat_id=GROUP_ID, text=message)
 
 def start(update: Update, context):
     update.message.reply_text(
-        "👋 Welcome to *Quotex Pro Signal Bot!*\n\n"
-        "I send high-probability signals every 5 minutes.\n"
-        "Use /timeset 120 to change the signal interval.\n\n"
-        "✅ Signals are based on real-time multi-candle trend strength.\n\n"
-        "Enjoy smart trading!",
-        parse_mode='Markdown'
+        "👋 Welcome to Quotex Pro Signal Bot!\n"
+        "I send real-time, accurate signals every 5 minutes.\n"
+        "Use /timeset <seconds> to change interval.\n"
+        "Trade smart, trade safe!"
     )
 
 def timeset(update: Update, context):
     global interval_seconds
     try:
         if context.args:
-            new_time = int(context.args[0])
-            interval_seconds = new_time
-            update.message.reply_text(f"⏱ Interval set to {interval_seconds} seconds.")
+            new_interval = int(context.args[0])
+            interval_seconds = new_interval
+            update.message.reply_text(f"Interval changed to {interval_seconds} seconds.")
         else:
-            raise ValueError
+            update.message.reply_text("Usage: /timeset <seconds>")
     except Exception:
-        update.message.reply_text("❌ Invalid format. Use: /timeset 120")
-
-def about(update: Update, context):
-    update.message.reply_text(
-        "📄 *About Quotex Pro Signal Bot*\n\n"
-        "This bot sends real-time signals with 90%+ accuracy using strong candle trends.\n"
-        "📊 Based on 3-candle momentum filtering.\n\n"
-        "👤 Developer: @nknoman22\n"
-        "🔗 Bot: @QXProSignalBot",
-        parse_mode='Markdown'
-    )
+        update.message.reply_text("Invalid input. Use: /timeset <seconds>")
 
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("timeset", timeset))
-dispatcher.add_handler(CommandHandler("about", about))
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -122,24 +134,20 @@ def webhook():
     return "OK", 200
 
 @app.route("/")
-def home():
-    return "Quotex Pro Signal Bot is Live!", 200
+def index():
+    return "Quotex Pro Signal Bot is Running!", 200
 
-def run_scheduler():
+def scheduler_thread():
     while True:
-        send_best_signal()
+        send_signal()
         threading.Event().wait(interval_seconds)
 
-threading.Thread(target=run_scheduler, daemon=True).start()
-
-if HOST_URL:
-    try:
+if __name__ == "__main__":
+    if HOST_URL:
         webhook_url = f"{HOST_URL}/{BOT_TOKEN}"
         bot.set_webhook(url=webhook_url)
-        logging.info(f"✅ Webhook set to: {webhook_url}")
-    except Exception as e:
-        logging.error(f"❌ Failed to set webhook: {e}")
+        logging.info(f"Webhook set to {webhook_url}")
 
-if __name__ == "__main__":
-    logging.info("Starting Quotex Pro Signal Bot...")
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    threading.Thread(target=scheduler_thread, daemon=True).start()
+    logging.info("Starting Flask server...")
+    app.run(host="0.0.0.0", port=PORT)
